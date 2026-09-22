@@ -34,15 +34,14 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Game state references across animation frames
   const stateRef = useRef<{
     width: number;
     height: number;
     startTime: number;
     elapsedMs: number;
     lastFrameTime: number;
-    nextSpawnTimer: number; // counts down from 5.0 to 0
-    totalSpawned: number; // cumulative threats spawned this run (for milestone chimes)
+    nextSpawnTimer: number;
+    totalSpawned: number;
     player: PlayerEntity;
     viruses: VirusEntity[];
     indicators: SpawnIndicator[];
@@ -75,7 +74,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     isMouseInside: false,
   });
 
-  // Helper to spawn 3D explosion debris
   const createExplosion = useCallback(
     (x: number, y: number, color1: string, color2: string, count: number = 35) => {
       const particles: Particle[] = [];
@@ -91,7 +89,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           color: Math.random() > 0.5 ? color1 : color2,
           alpha: 1,
           life: 0,
-          maxLife: Math.random() * 0.4 + 0.5, // seconds
+          maxLife: Math.random() * 0.4 + 0.5,
           is3dShard: Math.random() > 0.3,
         });
       }
@@ -100,7 +98,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     []
   );
 
-  // Helper to find a safe location for a new virus (away from player)
   const getSafeSpawnLocation = useCallback((playerX: number, playerY: number, size: number) => {
     const { width, height } = stateRef.current;
     const margin = 45;
@@ -120,7 +117,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     return { x, y, size };
   }, []);
 
-  // Initiate a new virus spawn sequence with warning indicator
   const queueNewVirus = useCallback(() => {
     const { player } = stateRef.current;
     const loc = getSafeSpawnLocation(player.x, player.y, 30);
@@ -135,13 +131,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       size: loc.size,
       progress: 0,
       strain,
-      duration: 0.8, // 0.8 seconds warning
+      duration: 0.8,
     });
 
     soundManager.playSpawnWarning();
   }, [getSafeSpawnLocation]);
 
-  // Actual materialization of virus
   const materializeVirus = useCallback((ind: SpawnIndicator) => {
     const angle = Math.random() * Math.PI * 2;
     const speed = 2.4 + Math.random() * 1.5;
@@ -172,18 +167,15 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       glowColor,
     });
 
-    // Materialize flash
     createExplosion(ind.x, ind.y, color, '#ffffff', 18);
     soundManager.playVirusSpawned();
 
-    // Bright milestone chime every 10th threat spawned this run
     stateRef.current.totalSpawned += 1;
     if (stateRef.current.totalSpawned % 10 === 0) {
       soundManager.playMilestoneChime();
     }
   }, [createExplosion]);
 
-  // Reset game state for fresh run
   const resetGame = useCallback(() => {
     const { width, height } = stateRef.current;
     const cx = width / 2;
@@ -192,7 +184,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     stateRef.current.startTime = performance.now();
     stateRef.current.elapsedMs = 0;
     stateRef.current.lastFrameTime = performance.now();
-    stateRef.current.nextSpawnTimer = 5.0; // 5 seconds interval
+    stateRef.current.nextSpawnTimer = 5.0;
     stateRef.current.totalSpawned = 0;
     stateRef.current.viruses = [];
     stateRef.current.indicators = [];
@@ -211,11 +203,9 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       tiltY: 0,
     };
 
-    // Spawn 1 initial virus so the field starts active
     queueNewVirus();
   }, [queueNewVirus]);
 
-  // Trigger reset when gameStatus changes to 'playing' from 'idle' or 'gameover'
   useEffect(() => {
     if (gameStatus === 'playing') {
       resetGame();
@@ -223,13 +213,11 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     }
   }, [gameStatus, resetGame]);
 
-  // Pointer position listeners (mouse and touch sliding)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const handlePointerMove = (e: MouseEvent | TouchEvent) => {
-      // Prevent default page scrolling when dragging your finger on mobile
       if ('touches' in e) {
         e.preventDefault();
       }
@@ -251,7 +239,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       const rawX = clientX - rect.left;
       const rawY = clientY - rect.top;
 
-      // Constrain within play perimeter
       const pad = 24;
       const targetX = Math.max(pad, Math.min(stateRef.current.width - pad, rawX));
       const targetY = Math.max(pad, Math.min(stateRef.current.height - pad, rawY));
@@ -270,7 +257,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     };
 
     window.addEventListener('mousemove', handlePointerMove);
-    // passive: false allows e.preventDefault() to block mobile page scrolling while sliding
     window.addEventListener('touchmove', handlePointerMove, { passive: false });
     window.addEventListener('touchstart', handlePointerMove, { passive: false });
     canvas.addEventListener('mouseenter', handlePointerEnter);
@@ -285,7 +271,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     };
   }, []);
 
-  // Responsive Resize Observer
   useEffect(() => {
     const container = containerRef.current;
     const canvas = canvasRef.current;
@@ -319,9 +304,13 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     return () => observer.disconnect();
   }, []);
 
-  // Main 60/120 FPS Game & Physics Loop
+  // Main game loop
   useEffect(() => {
     let animId: number;
+    // CHANGED: guard flag prevents multiple onGameOver calls within this effect instance
+    let runEnded = false;
+    // CHANGED: throttle stats updates to ~10 Hz instead of every frame
+    let lastStatsUpdate = 0;
 
     const loop = (currentTime: number) => {
       animId = requestAnimationFrame(loop);
@@ -334,28 +323,24 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       const state = stateRef.current;
       const { width, height } = state;
 
-      // Delta time calculation
       if (!state.lastFrameTime) state.lastFrameTime = currentTime;
       const dt = Math.min((currentTime - state.lastFrameTime) / 1000, 0.1);
       state.lastFrameTime = currentTime;
 
-      // Game logic updates only when playing
-      if (gameStatus === 'playing') {
+      // CHANGED: added `&& !runEnded`
+      if (gameStatus === 'playing' && !runEnded) {
         state.elapsedMs += dt * 1000;
 
-        // Decrease invulnerability timer
         if (state.player.invulnerableTime > 0) {
           state.player.invulnerableTime = Math.max(0, state.player.invulnerableTime - dt);
         }
 
-        // Smooth player cursor tracking with crisp responsive lerp
         const lerpFactor = 0.28;
         const prevPx = state.player.x;
         const prevPy = state.player.y;
         state.player.x += (state.player.targetX - state.player.x) * lerpFactor;
         state.player.y += (state.player.targetY - state.player.y) * lerpFactor;
 
-        // Player motion trail
         const distMoved = Math.hypot(state.player.x - prevPx, state.player.y - prevPy);
         if (distMoved > 1.5) {
           state.player.trail.push({ x: state.player.x, y: state.player.y });
@@ -364,14 +349,12 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           }
         }
 
-        // Virus 5-second Spawner Logic
         state.nextSpawnTimer -= dt;
         if (state.nextSpawnTimer <= 0) {
           queueNewVirus();
-          state.nextSpawnTimer = 5.0; // Reset 5.0 seconds
+          state.nextSpawnTimer = 5.0;
         }
 
-        // Update pre-spawn indicators
         for (let i = state.indicators.length - 1; i >= 0; i--) {
           const ind = state.indicators[i];
           ind.progress += dt / ind.duration;
@@ -381,40 +364,32 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           }
         }
 
-        // Update active viruses
         const arenaPad = 18;
         for (const v of state.viruses) {
           v.pulsePhase += dt * 3.5;
           v.wanderTimer -= dt;
 
-          // Dynamic Autonomous Wandering Behavior
           if (v.wanderTimer <= 0) {
             v.wanderTimer = 0.8 + Math.random() * 1.5;
-            // Slight steering adjustment (-45 to +45 deg)
             const steerAngle = (Math.random() - 0.5) * (Math.PI / 2.5);
             v.angle += steerAngle;
             v.vx = Math.cos(v.angle) * v.baseSpeed;
             v.vy = Math.sin(v.angle) * v.baseSpeed;
           }
 
-          // Special strain behaviors
           if (v.strain === 'drifter') {
-            // Sinusoidal wavy wander
             const wave = Math.sin(currentTime * 0.003 + v.pulsePhase) * 1.2;
             v.x += (v.vx + -v.vy * 0.3 * wave) * dt * 60;
             v.y += (v.vy + v.vx * 0.3 * wave) * dt * 60;
           } else if (v.strain === 'pulsar') {
-            // Rhythmic speed bursts
             const burst = 0.7 + Math.pow(Math.sin(v.pulsePhase * 2), 2) * 0.8;
             v.x += v.vx * burst * dt * 60;
             v.y += v.vy * burst * dt * 60;
           } else {
-            // Standard smooth movement
             v.x += v.vx * dt * 60;
             v.y += v.vy * dt * 60;
           }
 
-          // Wall bounce physics
           const half = v.size / 2;
           let bounced = false;
 
@@ -447,7 +422,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
             soundManager.playWallBounce();
           }
 
-          // Collision Detection (Square vs Square intersection)
           if (state.player.invulnerableTime <= 0) {
             const pHalf = (state.player.size * 0.82) / 2;
             const vHalf = (v.size * 0.82) / 2;
@@ -457,7 +431,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
               Math.abs(state.player.y - v.y) < pHalf + vHalf;
 
             if (collision) {
-              // FATAL COLLISION!
+              // CHANGED: set guard BEFORE calling onGameOver
+              runEnded = true;
               state.screenShake = 16;
               createExplosion(state.player.x, state.player.y, '#38bdf8', '#ffffff', 30);
               createExplosion(v.x, v.y, v.color, '#ef4444', 30);
@@ -470,11 +445,13 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           }
         }
 
-        // Periodically propagate stats to HUD
-        onUpdateStats(state.elapsedMs, state.viruses.length, Math.max(0, state.nextSpawnTimer));
+        // CHANGED: throttled stats update
+        if (currentTime - lastStatsUpdate > 100) {
+          onUpdateStats(state.elapsedMs, state.viruses.length, Math.max(0, state.nextSpawnTimer));
+          lastStatsUpdate = currentTime;
+        }
       }
 
-      // Update particle physics
       for (let i = state.particles.length - 1; i >= 0; i--) {
         const p = state.particles[i];
         p.life += dt;
@@ -489,7 +466,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         }
       }
 
-      // Screen Shake handling
       ctx.save();
       if (state.screenShake > 0) {
         const sx = (Math.random() - 0.5) * state.screenShake;
@@ -499,44 +475,40 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         if (state.screenShake < 0.3) state.screenShake = 0;
       }
 
-      // 1. Draw Cyber Arena Grid
       drawCyberGrid(ctx, width, height, currentTime * 0.001);
 
-      // 2. Draw Spawn Indicators
       for (const ind of state.indicators) {
         drawSpawnIndicator(ctx, ind, currentTime * 0.002);
       }
 
-      // 3. Draw Viruses (Hostile 3D Blocks)
       for (const v of state.viruses) {
         draw3DBlock(
           ctx,
           v.x,
           v.y,
           v.size,
-          7, // 3D depth
+          7,
           v.strain === 'alpha' ? 'virus' : v.strain,
           v.pulsePhase,
           false
         );
       }
 
-      // 4. Draw Player Trails & 3D Player Block
-      if (gameStatus === 'playing') {
+      // CHANGED: also gated by !runEnded so player doesn't render after death
+      if (gameStatus === 'playing' && !runEnded) {
         drawPlayerTrail(ctx, state.player.trail, state.player.size);
         draw3DBlock(
           ctx,
           state.player.x,
           state.player.y,
           state.player.size,
-          8, // 3D depth
+          8,
           'player',
           currentTime * 0.004,
           state.player.invulnerableTime > 0
         );
       }
 
-      // 5. Draw Particle effects
       drawParticles(ctx, state.particles);
 
       ctx.restore();
@@ -554,10 +526,8 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     >
       <canvas ref={canvasRef} className="block w-full h-full" />
 
-      {/* Atmospheric CRT scanline overlay */}
       <div className="absolute inset-0 scanlines opacity-40 pointer-events-none" />
 
-      {/* Start / Idle Screen Prompt */}
       {gameStatus === 'idle' && (
         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-6 bg-black/65 backdrop-blur-sm text-center">
           <div className="max-w-md p-8 rounded-sm bg-[#090e1a]/95 border border-cyan-500/40 shadow-[0_0_50px_rgba(6,182,212,0.25)]">

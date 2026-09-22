@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { GameStatus } from './types';
 import { HUD } from './components/HUD';
 import { GameCanvas } from './components/GameCanvas';
@@ -21,6 +21,10 @@ export default function App() {
   const [globalPercentile, setGlobalPercentile] = useState<number | null>(null);
   const [isLoadingGlobalStats, setIsLoadingGlobalStats] = useState<boolean>(false);
   const [showIntro, setShowIntro] = useState<boolean>(true);
+
+  // Guards against React StrictMode double-invoking effects and prevents
+  // logging the same game-over more than once per run.
+  const gameOverLoggedRef = useRef(false);
 
   // Play BossIntro.wav on the user's very first click or keypress anywhere on the page
   useEffect(() => {
@@ -86,8 +90,11 @@ export default function App() {
     setIsNewRecord(false);
     setGameStatus('playing');
 
-    // Optimistically bump the counter, then reconcile with the backend's real count.
-    setTotalGlobalRuns((prev) => prev + 1);
+    // Reset the game-over guard so the upcoming run can be logged.
+    gameOverLoggedRef.current = false;
+
+    // Do NOT optimistically bump the counter — the backend is the source of truth.
+    // recordGameStart() only reads the count, so it's safe to call more than once.
     recordGameStart()
       .then(setTotalGlobalRuns)
       .catch(() => {});
@@ -95,6 +102,10 @@ export default function App() {
 
   const handleGameOver = useCallback(
     (finalTimeMs: number, virusCount: number) => {
+      // Guard: only log one game-over per run, even if GameCanvas fires twice.
+      if (gameOverLoggedRef.current) return;
+      gameOverLoggedRef.current = true;
+
       setSurvivalTime(finalTimeMs);
       setActiveViruses(virusCount);
       updateHighScoreIfBeaten(finalTimeMs);
