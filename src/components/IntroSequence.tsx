@@ -157,6 +157,11 @@ export const IntroSequence: React.FC<IntroSequenceProps> = ({ onComplete }) => {
       <div className="absolute bottom-4 inset-x-0 text-center text-[10px] sm:text-xs text-slate-500 font-mono tracking-widest z-20">
         CLICK ANYWHERE TO START
       </div>
+
+      {/* CHANGED: creator credit — small, dim, bottom-right corner */}
+      <div className="absolute bottom-3 right-4 text-[10px] text-slate-600 font-mono tracking-widest uppercase opacity-70 z-20 pointer-events-none">
+        Created by Kevin Tamkei
+      </div>
     </div>
   );
 };
