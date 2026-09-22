@@ -34,6 +34,13 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  // CHANGED: mirror gameStatus into a ref so the pointer listeners (which run
+  // once with [] deps) can read the current value without a stale closure.
+  const gameStatusRef = useRef<GameStatus>(gameStatus);
+  useEffect(() => {
+    gameStatusRef.current = gameStatus;
+  }, [gameStatus]);
+
   const stateRef = useRef<{
     width: number;
     height: number;
@@ -218,7 +225,10 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
     if (!canvas) return;
 
     const handlePointerMove = (e: MouseEvent | TouchEvent) => {
-      if ('touches' in e) {
+      // CHANGED: only preventDefault while actively playing. Calling it during
+      // idle/gameover suppresses the synthesized click event on mobile, which
+      // blocked the "Engage Defense Grid" button from ever firing.
+      if ('touches' in e && gameStatusRef.current === 'playing') {
         e.preventDefault();
       }
 
@@ -307,9 +317,7 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
   // Main game loop
   useEffect(() => {
     let animId: number;
-    // CHANGED: guard flag prevents multiple onGameOver calls within this effect instance
     let runEnded = false;
-    // CHANGED: throttle stats updates to ~10 Hz instead of every frame
     let lastStatsUpdate = 0;
 
     const loop = (currentTime: number) => {
@@ -327,7 +335,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
       const dt = Math.min((currentTime - state.lastFrameTime) / 1000, 0.1);
       state.lastFrameTime = currentTime;
 
-      // CHANGED: added `&& !runEnded`
       if (gameStatus === 'playing' && !runEnded) {
         state.elapsedMs += dt * 1000;
 
@@ -431,7 +438,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
               Math.abs(state.player.y - v.y) < pHalf + vHalf;
 
             if (collision) {
-              // CHANGED: set guard BEFORE calling onGameOver
               runEnded = true;
               state.screenShake = 16;
               createExplosion(state.player.x, state.player.y, '#38bdf8', '#ffffff', 30);
@@ -445,7 +451,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
           }
         }
 
-        // CHANGED: throttled stats update
         if (currentTime - lastStatsUpdate > 100) {
           onUpdateStats(state.elapsedMs, state.viruses.length, Math.max(0, state.nextSpawnTimer));
           lastStatsUpdate = currentTime;
@@ -494,7 +499,6 @@ export const GameCanvas: React.FC<GameCanvasProps> = ({
         );
       }
 
-      // CHANGED: also gated by !runEnded so player doesn't render after death
       if (gameStatus === 'playing' && !runEnded) {
         drawPlayerTrail(ctx, state.player.trail, state.player.size);
         draw3DBlock(
