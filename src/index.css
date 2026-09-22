@@ -1,0 +1,145 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-cyber: 'Rajdhani', sans-serif;
+    --font-display: 'Chakra Petch', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  body {
+    font-family: var(--font-cyber);
+  }
+}
+
+.font-cyber {
+  font-family: 'Rajdhani', sans-serif;
+}
+
+.font-display {
+  font-family: 'Chakra Petch', sans-serif;
+}
+
+.font-mono-hud {
+  font-family: 'JetBrains Mono', monospace;
+}
+
+/* Custom scanlines & cyber glow utilities */
+.scanlines {
+  background: linear-gradient(
+    to bottom,
+    rgba(255,255,255,0),
+    rgba(255,255,255,0) 50%,
+    rgba(0, 0, 0, 0.3) 50%,
+    rgba(0, 0, 0, 0.3)
+  );
+  background-size: 100% 4px;
+  pointer-events: none;
+}
+
+.cyber-glow-cyan {
+  box-shadow: 0 0 20px rgba(6, 182, 212, 0.35), inset 0 0 10px rgba(6, 182, 212, 0.2);
+}
+
+.cyber-glow-red {
+  box-shadow: 0 0 25px rgba(239, 68, 68, 0.45), inset 0 0 12px rgba(239, 68, 68, 0.25);
+}
+
+/* Intro sequence animations */
+@keyframes binary-fall {
+  from {
+    transform: translateY(-50%);
+  }
+  to {
+    transform: translateY(0%);
+  }
+}
+
+@keyframes glitch-flicker {
+  0%,
+  100% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+  8% {
+    opacity: 0.2;
+    transform: translate(-2px, 1px);
+  }
+  10% {
+    opacity: 1;
+    transform: translate(2px, -1px);
+  }
+  45% {
+    opacity: 0.3;
+    transform: translate(1px, 1px);
+  }
+  47% {
+    opacity: 1;
+    transform: translate(0, 0);
+  }
+  70% {
+    opacity: 0.7;
+  }
+  72% {
+    opacity: 1;
+  }
+}
+.animate-glitch-flicker {
+  animation: glitch-flicker 0.6s steps(2, end) infinite;
+}
+.animate-glitch-flicker-fast {
+  animation: glitch-flicker 0.2s steps(2, end) infinite;
+}
+
+@keyframes corridor-zoom {
+  0% {
+    transform: scale(1) rotate(0deg);
+    filter: blur(0px);
+  }
+  100% {
+    transform: scale(2.4) rotate(1deg);
+    filter: blur(1px);
+  }
+}
+.animate-corridor-zoom {
+  animation: corridor-zoom 1s ease-in forwards;
+}
+
+@keyframes title-reveal {
+  0% {
+    opacity: 0;
+    transform: scale(1.6) skewX(6deg);
+    filter: blur(6px);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1.1) skewX(-3deg);
+    filter: blur(1px);
+  }
+  60% {
+    transform: scale(0.97) skewX(2deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) skewX(0deg);
+    filter: blur(0px);
+  }
+}
+.animate-title-reveal {
+  animation: title-reveal 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes fade-in-settle {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-fade-in-settle {
+  animation: fade-in-settle 0.6s ease-out forwards;
+}
+

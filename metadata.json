@@ -1,0 +1,6 @@
+{
+  "name": "Virus Evasion",
+  "description": "A reverse-snake cyberpunk survival game where you evade autonomously wandering 3D virus blocks.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
