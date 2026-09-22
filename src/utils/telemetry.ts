@@ -362,7 +362,7 @@ export async function fetchGlobalRecord(): Promise<number> {
   if (LEADERBOARD_ENDPOINT) {
     try {
       const res = await fetch(
-        `${LEADERBOARD_ENDPOINT}?select=survival_time_ms&order=survival_time_ms.desc&limit=1`,
+        `${TABLE_ENDPOINT}?select=survival_time_ms&order=survival_time_ms.desc&limit=1`,
         { headers: supabaseHeaders() }
       );
       await assertOk(res, 'fetchGlobalRecord');

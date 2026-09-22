@@ -87,6 +87,16 @@ class SoundManager {
     } catch (e) {}
   }
 
+  // Plays congratulations.mp3 when the player makes the Top 10
+  public playTopTenFanfare() {
+    if (!this.enabled) return;
+    try {
+      const audio = new Audio('/congratulations.mp3');
+      audio.volume = 0.7;
+      audio.play().catch((err) => console.warn('Top 10 fanfare play blocked:', err));
+    } catch (e) {}
+  }
+
   // --- PROCEDURAL SFX ---
   public playSpawnWarning() {
     if (!this.enabled) return;

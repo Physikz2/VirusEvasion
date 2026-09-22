@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   RefreshCw,
   Trophy,
@@ -40,7 +40,6 @@ interface GameOverModalProps {
   onRestart: () => void;
 }
 
-// Fixed log-scale gridlines: 10 / 100 / 1k / 10k runs.
 const LOG_SCALE_TICKS = [10, 100, 1000, 10000];
 const LOG_SCALE_MAX = Math.log10(LOG_SCALE_TICKS[LOG_SCALE_TICKS.length - 1]);
 
@@ -105,11 +104,15 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
 
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[] | null>(null);
   const [qualifiesForTopTen, setQualifiesForTopTen] = useState(false);
+  const [playerRank, setPlayerRank] = useState<number | null>(null);
   const [isHallOfFameOpen, setIsHallOfFameOpen] = useState(false);
   const [nameInput, setNameInput] = useState('');
   const [nameError, setNameError] = useState<string | null>(null);
   const [isSubmittingScore, setIsSubmittingScore] = useState(false);
   const [hasSubmittedScore, setHasSubmittedScore] = useState(false);
+
+  const topTenBannerRef = useRef<HTMLDivElement>(null);
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   const playerBinIndex = getHistogramBinIndex(survivalTime);
 
@@ -122,7 +125,6 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
       .finally(() => setIsHistogramLoading(false));
   }, [isHistogramOpen, histogramData]);
 
-  // Check Top 10 eligibility once on mount, and keep the list warm for the Hall of Fame overlay.
   useEffect(() => {
     fetchTopScores()
       .then((entries) => {
@@ -131,10 +133,34 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
           entries.length < LEADERBOARD_DISPLAY_LIMIT ||
           survivalTime > entries[entries.length - 1].survivalTimeMs;
         setQualifiesForTopTen(qualifies);
+        const betterCount = entries.filter((e) => e.survivalTimeMs > survivalTime).length;
+        setPlayerRank(betterCount + 1);
       })
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (!qualifiesForTopTen || hasSubmittedScore) return;
+
+    const chimeTimer = window.setTimeout(() => {
+      soundManager.playTopTenFanfare();
+    }, 250);
+
+    const scrollTimer = window.setTimeout(() => {
+      topTenBannerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 400);
+
+    const focusTimer = window.setTimeout(() => {
+      nameInputRef.current?.focus();
+    }, 1200);
+
+    return () => {
+      window.clearTimeout(chimeTimer);
+      window.clearTimeout(scrollTimer);
+      window.clearTimeout(focusTimer);
+    };
+  }, [qualifiesForTopTen, hasSubmittedScore]);
 
   const handleSubmitScore = async () => {
     soundManager.playUiTick();
@@ -154,6 +180,13 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
     } finally {
       setIsSubmittingScore(false);
     }
+  };
+
+  const handleSkipName = () => {
+    soundManager.playUiTick();
+    setHasSubmittedScore(true);
+    setNameInput('');
+    setNameError(null);
   };
 
   const shareUrl = typeof window !== 'undefined' ? window.location.href : '';
@@ -212,13 +245,11 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
       className="absolute inset-0 z-30 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
     >
       <div className="relative w-full max-w-4xl max-h-[92vh] overflow-y-auto bg-[#0b0f19] border border-red-500/40 p-5 sm:p-6 rounded-sm shadow-[0_0_50px_rgba(239,68,68,0.3)]">
-        {/* Tech decorative corners */}
         <div className="absolute -top-1 -left-1 w-3 h-3 border-t-2 border-l-2 border-red-500" />
         <div className="absolute -top-1 -right-1 w-3 h-3 border-t-2 border-r-2 border-red-500" />
         <div className="absolute -bottom-1 -left-1 w-3 h-3 border-b-2 border-l-2 border-red-500" />
         <div className="absolute -bottom-1 -right-1 w-3 h-3 border-b-2 border-r-2 border-red-500" />
 
-        {/* Header Title (spans both columns) */}
         <div className="text-center mb-4">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-sm border border-red-500/30 bg-red-950/40 text-red-400 text-xs font-mono uppercase tracking-widest mb-2">
             <AlertTriangle className="w-3.5 h-3.5 text-red-400 animate-pulse" />
@@ -232,28 +263,157 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-          {/* Column 1: Performance & Stats */}
-          <div className="flex flex-col gap-3">
-            {/* Main Survival Score Box */}
-            <div className="relative bg-[#070b13] border border-red-500/25 p-3 rounded-sm text-center">
-              {isNewRecord && (
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-amber-500 text-black text-[11px] font-bold tracking-widest uppercase flex items-center gap-1 shadow-[0_0_15px_rgba(245,158,11,0.6)]">
-                  <Trophy className="w-3 h-3" />
-                  New High Score!
-                </div>
-              )}
-
-              <div className="text-xs text-slate-400 font-bold uppercase tracking-widest flex items-center justify-center gap-1.5 mb-1">
-                <Clock className="w-3.5 h-3.5 text-cyan-400" />
-                Final Survival Time
-              </div>
-              <div className="text-4xl sm:text-5xl font-extrabold font-mono-hud text-white tracking-wider my-1 drop-shadow-[0_0_15px_rgba(6,182,212,0.4)]">
-                {formatTime(survivalTime)}
-              </div>
+        {qualifiesForTopTen && (
+          <div
+            ref={topTenBannerRef}
+            className="relative mb-4 p-5 rounded-sm border-2 border-purple-400/60 bg-gradient-to-br from-purple-950/60 via-[#130a1c] to-purple-950/60 shadow-[0_0_40px_rgba(168,85,247,0.5)] overflow-hidden"
+          >
+            <div className="absolute inset-0 rounded-sm pointer-events-none">
+              <div className="absolute inset-0 rounded-sm border border-purple-400/40 animate-pulse" />
             </div>
 
-            {/* Secondary Metrics Grid */}
+            {hasSubmittedScore ? (
+              <div className="relative flex flex-col items-center gap-2 text-center">
+                <div className="flex items-center gap-2 text-purple-200">
+                  <Trophy className="w-6 h-6 text-purple-300" />
+                  <span className="text-lg font-display font-extrabold uppercase tracking-widest text-purple-200">
+                    Entry Confirmed
+                  </span>
+                </div>
+                <div className="text-[12px] text-purple-300 font-cyber">
+                  Your score is now live in the Global Hall of Fame.
+                </div>
+              </div>
+            ) : (
+              <div className="relative flex flex-col items-center text-center">
+                <div className="flex items-center gap-2 mb-1">
+                  <Trophy className="w-5 h-5 text-amber-300 animate-bounce" />
+                  <span className="text-[11px] font-bold uppercase tracking-widest text-purple-300">
+                    Congratulations
+                  </span>
+                  <Trophy className="w-5 h-5 text-amber-300 animate-bounce" />
+                </div>
+                <h3 className="text-xl sm:text-2xl font-display font-extrabold uppercase tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-purple-300 via-fuchsia-200 to-purple-300 drop-shadow-[0_0_15px_rgba(168,85,247,0.8)] mb-2">
+                  You Made the Global Top 10
+                </h3>
+
+                <div className="text-[13px] sm:text-sm text-purple-100 font-cyber mb-3 leading-relaxed">
+                  You ranked{' '}
+                  <strong className="text-amber-300 font-mono-hud text-base">
+                    #{playerRank ?? '?'}
+                  </strong>{' '}
+                  globally.
+                  <br />
+                  <span className="text-[12px] text-purple-300">
+                    Based on{' '}
+                    <strong className="text-purple-200">
+                      {totalGlobalRuns.toLocaleString()}
+                    </strong>{' '}
+                    total runs logged.
+                  </span>
+                </div>
+
+                <div className="w-full max-w-md">
+                  <div className="text-[11px] text-purple-300 uppercase tracking-widest font-bold mb-1.5">
+                    Enter your handle to claim your spot:
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      ref={nameInputRef}
+                      id="input-hall-of-fame-name"
+                      type="text"
+                      value={nameInput}
+                      onChange={(e) => {
+                        setNameInput(e.target.value);
+                        setNameError(null);
+                      }}
+                      onKeyDown={(e) => e.key === 'Enter' && handleSubmitScore()}
+                      minLength={MIN_NAME_LENGTH}
+                      maxLength={MAX_NAME_LENGTH}
+                      placeholder="Your handle..."
+                      className="flex-1 min-w-0 px-3 py-2.5 rounded-sm bg-[#070b13] border border-purple-500/50 text-slate-100 text-sm font-mono placeholder:text-slate-600 focus:outline-none focus:border-purple-300 focus:shadow-[0_0_15px_rgba(168,85,247,0.5)] transition-all"
+                    />
+                    <button
+                      id="btn-submit-score"
+                      onClick={handleSubmitScore}
+                      disabled={isSubmittingScore}
+                      className="px-5 py-2.5 rounded-sm bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 disabled:opacity-50 text-white text-xs font-bold uppercase tracking-widest transition-all cursor-pointer flex items-center gap-1.5 shadow-[0_0_20px_rgba(168,85,247,0.6)]"
+                    >
+                      {isSubmittingScore ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        'Submit'
+                      )}
+                    </button>
+                  </div>
+                  {nameError && (
+                    <div className="text-[11px] text-red-400 mt-1.5">{nameError}</div>
+                  )}
+
+                  <button
+                    onClick={handleSkipName}
+                    className="mt-2.5 text-[11px] text-slate-500 hover:text-slate-300 uppercase tracking-widest font-mono underline-offset-2 hover:underline transition-colors cursor-pointer"
+                  >
+                    Skip for now
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="relative bg-[#070b13] border border-red-500/25 p-4 rounded-sm text-center mb-4">
+          {isNewRecord && (
+            <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full bg-amber-500 text-black text-[11px] font-bold tracking-widest uppercase flex items-center gap-1 shadow-[0_0_15px_rgba(245,158,11,0.6)]">
+              <Trophy className="w-3 h-3" />
+              New High Score!
+            </div>
+          )}
+
+          <div className="text-xs text-slate-400 font-bold uppercase tracking-widest flex items-center justify-center gap-1.5 mb-1">
+            <Clock className="w-3.5 h-3.5 text-cyan-400" />
+            Final Survival Time
+          </div>
+          <div className="text-4xl sm:text-5xl font-extrabold font-mono-hud text-white tracking-wider my-1 drop-shadow-[0_0_15px_rgba(6,182,212,0.4)]">
+            {formatTime(survivalTime)}
+          </div>
+
+          <div className="mt-3 pt-3 border-t border-slate-800">
+            {isLoadingGlobalStats ? (
+              <div className="flex items-center justify-center gap-2 text-sm text-emerald-300 font-cyber">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Calculating your global rank...
+              </div>
+            ) : globalPercentile !== null ? (
+              <div className="flex flex-col items-center gap-1">
+                <div className="flex items-center gap-2 text-emerald-400">
+                  <Globe className="w-4 h-4" />
+                  <span className="text-[11px] font-bold uppercase tracking-widest">
+                    Global Rank
+                  </span>
+                </div>
+                <div className="text-2xl sm:text-3xl font-extrabold font-display text-emerald-300 tracking-wide drop-shadow-[0_0_15px_rgba(16,185,129,0.5)]">
+                  Top {100 - globalPercentile}%
+                </div>
+                <div className="text-[12px] text-slate-300 font-cyber">
+                  You survived longer than{' '}
+                  <strong className="text-emerald-300">{globalPercentile}%</strong> of players
+                  worldwide
+                </div>
+                <div className="text-[11px] text-slate-500 font-mono-hud mt-1">
+                  {totalGlobalRuns.toLocaleString()} runs logged
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-slate-400 font-cyber">
+                Global rank unavailable right now.
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+          <div className="flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-[#070b13] border border-slate-800 p-3 rounded-sm flex items-center gap-3">
                 <div className="p-2 rounded bg-red-950/40 border border-red-500/20 text-red-400">
@@ -272,7 +432,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
                   <Trophy className="w-4 h-4" />
                 </div>
                 <div>
-                  <div className="text-[10px] uppercase font-bold text-slate-400">All-Time Record</div>
+                  <div className="text-[10px] uppercase font-bold text-slate-400">Your Best</div>
                   <div className="text-lg font-bold font-mono-hud text-amber-300">
                     {formatTime(highScore)}
                   </div>
@@ -280,7 +440,6 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
               </div>
             </div>
 
-            {/* Threat Level Assessment */}
             <div className={`p-3 rounded-sm border flex items-start gap-3 ${rating.color}`}>
               <Award className="w-5 h-5 flex-shrink-0 mt-0.5" />
               <div>
@@ -294,31 +453,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
             </div>
           </div>
 
-          {/* Column 2: Community, Actions & Telemetry */}
           <div className="flex flex-col gap-3">
-            {/* Global Percentile Rank */}
-            <div className="p-3 rounded-sm border border-emerald-500/30 bg-emerald-950/20 flex items-start gap-3">
-              <Globe className="w-5 h-5 flex-shrink-0 mt-0.5 text-emerald-400" />
-              <div className="text-[11px] text-emerald-200 font-cyber leading-relaxed">
-                {isLoadingGlobalStats ? (
-                  <span className="flex items-center gap-1.5 text-emerald-300">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    Calculating your global rank...
-                  </span>
-                ) : globalPercentile !== null ? (
-                  <span>
-                    You survived longer than{' '}
-                    <strong className="text-emerald-300">{globalPercentile}%</strong> of players
-                    worldwide! (<span className="text-emerald-300">{totalGlobalRuns.toLocaleString()}</span>{' '}
-                    total global runs)
-                  </span>
-                ) : (
-                  <span>Global rank unavailable right now.</span>
-                )}
-              </div>
-            </div>
-
-            {/* Viral Sharing Suite */}
             <div className="grid grid-cols-3 gap-2">
               <button
                 id="btn-share-score"
@@ -366,52 +501,7 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
               </button>
             </div>
 
-            {/* Global Top 10 Qualification Prompt */}
-            {qualifiesForTopTen && (
-              <div className="p-3 rounded-sm border border-purple-500/30 bg-purple-950/20">
-                {hasSubmittedScore ? (
-                  <div className="flex items-center gap-2 text-[12px] text-purple-200 font-cyber">
-                    <Trophy className="w-4 h-4 text-purple-300 flex-shrink-0" />
-                    Score submitted to the Global Hall of Fame!
-                  </div>
-                ) : (
-                  <>
-                    <div className="flex items-center gap-2 text-[12px] text-purple-200 font-cyber mb-2">
-                      <Trophy className="w-4 h-4 text-purple-300 flex-shrink-0" />
-                      You made the Global Top 10! Enter your handle:
-                    </div>
-                    <div className="flex gap-2">
-                      <input
-                        id="input-hall-of-fame-name"
-                        type="text"
-                        value={nameInput}
-                        onChange={(e) => {
-                          setNameInput(e.target.value);
-                          setNameError(null);
-                        }}
-                        onKeyDown={(e) => e.key === 'Enter' && handleSubmitScore()}
-                        minLength={MIN_NAME_LENGTH}
-                        maxLength={MAX_NAME_LENGTH}
-                        placeholder="Your handle..."
-                        className="flex-1 min-w-0 px-3 py-2 rounded-sm bg-[#070b13] border border-purple-500/30 text-slate-100 text-sm font-mono placeholder:text-slate-600 focus:outline-none focus:border-purple-400"
-                      />
-                      <button
-                        id="btn-submit-score"
-                        onClick={handleSubmitScore}
-                        disabled={isSubmittingScore}
-                        className="px-4 py-2 rounded-sm bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white text-xs font-bold uppercase tracking-wide transition-all cursor-pointer flex items-center gap-1.5"
-                      >
-                        {isSubmittingScore ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Submit'}
-                      </button>
-                    </div>
-                    {nameError && <div className="text-[11px] text-red-400 mt-1.5">{nameError}</div>}
-                  </>
-                )}
-              </div>
-            )}
-
-            {/* Secondary Global Data Triggers */}
-            <div className="grid grid-cols-2 gap-2 mt-auto">
+            <div className="grid grid-cols-2 gap-2">
               <button
                 id="btn-open-histogram"
                 onClick={() => {
@@ -439,7 +529,6 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
           </div>
         </div>
 
-        {/* Action Button (spans both columns) */}
         <button
           id="btn-retry-game"
           onClick={() => {
@@ -454,7 +543,6 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
         </button>
       </div>
 
-      {/* Global Rank Distribution Overlay */}
       {isHistogramOpen && (
         <div
           id="histogram-overlay"
@@ -491,7 +579,6 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
               </div>
             ) : (
               <div className="flex items-stretch gap-3">
-                {/* Y Axis */}
                 <div className="flex flex-col-reverse justify-between h-48 text-[10px] text-slate-500 font-mono-hud pb-6">
                   {LOG_SCALE_TICKS.map((tick) => (
                     <span key={tick} style={{ transform: 'translateY(50%)' }}>
@@ -500,7 +587,6 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
                   ))}
                 </div>
 
-                {/* Chart Area */}
                 <div className="relative flex-1">
                   <div className="absolute left-0 right-0 top-0 h-48">
                     {LOG_SCALE_TICKS.map((tick) => (
@@ -562,7 +648,6 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
         </div>
       )}
 
-      {/* Global Hall of Fame Overlay */}
       {isHallOfFameOpen && (
         <div
           id="hall-of-fame-overlay"
@@ -605,7 +690,9 @@ export const GameOverModal: React.FC<GameOverModalProps> = ({
               <ol className="flex flex-col gap-1.5">
                 {leaderboard.map((entry, i) => {
                   const isCurrentRun =
-                    hasSubmittedScore && entry.name === nameInput.trim() && entry.survivalTimeMs === survivalTime;
+                    hasSubmittedScore &&
+                    entry.name === nameInput.trim() &&
+                    entry.survivalTimeMs === survivalTime;
                   return (
                     <li
                       key={`${entry.name}-${entry.survivalTimeMs}-${i}`}
