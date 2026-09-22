@@ -7,6 +7,7 @@ interface HUDProps {
   survivalTime: number;
   activeViruses: number;
   highScore: number;
+  globalRecord: number; // ← NEW: highest score across all players
   nextSpawnCountdown: number; // in seconds (0 to 5)
   gameStatus: GameStatus;
   soundEnabled: boolean;
@@ -29,6 +30,7 @@ export const HUD: React.FC<HUDProps> = ({
   survivalTime,
   activeViruses,
   highScore,
+  globalRecord, // ← NEW
   nextSpawnCountdown,
   gameStatus,
   soundEnabled,
@@ -102,14 +104,25 @@ export const HUD: React.FC<HUDProps> = ({
           </div>
         </div>
 
-        {/* High Score */}
+        {/* Personal Best (local, per-device) */}
         <div className="flex flex-col items-end sm:items-center bg-[#14120a] border border-amber-500/30 px-3 py-1 rounded-sm">
           <span className="text-[10px] uppercase font-bold tracking-widest text-amber-400 flex items-center gap-1">
             <Trophy className="w-3 h-3 text-amber-400" />
-            Best Score
+            Your Best
           </span>
           <span className="text-sm sm:text-base font-bold font-mono-hud text-amber-200">
             {formatTime(highScore)}
+          </span>
+        </div>
+
+        {/* World Record (global, from leaderboard) — hidden on smallest screens */}
+        <div className="hidden sm:flex flex-col items-center bg-[#130a14] border border-pink-500/30 px-3 py-1 rounded-sm shadow-[0_0_15px_rgba(236,72,153,0.12)]">
+          <span className="text-[10px] uppercase font-bold tracking-widest text-pink-400 flex items-center gap-1">
+            <Trophy className="w-3 h-3 text-pink-400" />
+            World Record
+          </span>
+          <span className="text-sm sm:text-base font-bold font-mono-hud text-pink-200">
+            {globalRecord > 0 ? formatTime(globalRecord) : '--:--.--'}
           </span>
         </div>
 

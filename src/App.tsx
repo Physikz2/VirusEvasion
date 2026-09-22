@@ -5,7 +5,8 @@ import { GameCanvas } from './components/GameCanvas';
 import { GameOverModal } from './components/GameOverModal';
 import { IntroSequence } from './components/IntroSequence';
 import { soundManager } from './utils/audio';
-import { fetchGlobalRunCount, recordGameStart, recordGameOver } from './utils/telemetry';
+// CHANGED: added fetchGlobalRecord to the import
+import { fetchGlobalRunCount, recordGameStart, recordGameOver, fetchGlobalRecord } from './utils/telemetry';
 
 const HIGH_SCORE_KEY = 'virus_evasion_best_score_v1';
 
@@ -21,6 +22,8 @@ export default function App() {
   const [globalPercentile, setGlobalPercentile] = useState<number | null>(null);
   const [isLoadingGlobalStats, setIsLoadingGlobalStats] = useState<boolean>(false);
   const [showIntro, setShowIntro] = useState<boolean>(true);
+  // CHANGED: new state for the world record HUD cell
+  const [globalRecord, setGlobalRecord] = useState<number>(0);
 
   // Guards against React StrictMode double-invoking effects and prevents
   // logging the same game-over more than once per run.
@@ -62,6 +65,13 @@ export default function App() {
   useEffect(() => {
     fetchGlobalRunCount()
       .then(setTotalGlobalRuns)
+      .catch(() => {});
+  }, []);
+
+  // CHANGED: fetch the current world record on mount for HUD display
+  useEffect(() => {
+    fetchGlobalRecord()
+      .then(setGlobalRecord)
       .catch(() => {});
   }, []);
 
@@ -120,6 +130,9 @@ export default function App() {
         })
         .catch(() => {})
         .finally(() => setIsLoadingGlobalStats(false));
+
+      // CHANGED: refresh world record in case this run just set a new one
+      fetchGlobalRecord().then(setGlobalRecord).catch(() => {});
     },
     [updateHighScoreIfBeaten]
   );
@@ -177,6 +190,7 @@ export default function App() {
         survivalTime={survivalTime}
         activeViruses={activeViruses}
         highScore={highScore}
+        globalRecord={globalRecord}   {/* CHANGED: pass world record */}
         nextSpawnCountdown={nextSpawnCountdown}
         gameStatus={gameStatus}
         soundEnabled={soundEnabled}

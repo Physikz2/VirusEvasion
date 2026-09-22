@@ -353,3 +353,24 @@ export async function submitLeaderboardEntry(
   writeLocalLeaderboard(entries.slice(0, 100));
   return entries.slice(0, LEADERBOARD_LIMIT);
 }
+
+// ---------------------------------------------------------------------------
+// Global record (highest survival time across all players)
+// ---------------------------------------------------------------------------
+
+export async function fetchGlobalRecord(): Promise<number> {
+  if (LEADERBOARD_ENDPOINT) {
+    try {
+      const res = await fetch(
+        `${LEADERBOARD_ENDPOINT}?select=survival_time_ms&order=survival_time_ms.desc&limit=1`,
+        { headers: supabaseHeaders() }
+      );
+      await assertOk(res, 'fetchGlobalRecord');
+      const rows = (await res.json()) as Array<{ survival_time_ms: number }>;
+      return rows[0]?.survival_time_ms ?? 0;
+    } catch (err) {
+      console.error('[telemetry] fetchGlobalRecord error:', err);
+    }
+  }
+  return 0;
+}
