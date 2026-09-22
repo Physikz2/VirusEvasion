@@ -190,7 +190,7 @@ export default function App() {
         survivalTime={survivalTime}
         activeViruses={activeViruses}
         highScore={highScore}
-        globalRecord={globalRecord}   {/* CHANGED: pass world record */}
+        globalRecord={globalRecord}
         nextSpawnCountdown={nextSpawnCountdown}
         gameStatus={gameStatus}
         soundEnabled={soundEnabled}
